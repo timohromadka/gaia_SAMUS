@@ -177,13 +177,13 @@ def prepare_dataset(jsons_folder, videos_folder, output_folder, percent_niche_ca
     test_frames = final_frames[val_end:]
 
     # Write to txt files
-    with open(os.path.join(mainpatient_dir, "train.txt"), "w") as f:
+    with open(os.path.join(mainpatient_dir, "train-NICHE_DS.txt"), "w") as f:
         f.write("\n".join(train_frames))
 
-    with open(os.path.join(mainpatient_dir, "val.txt"), "w") as f:
+    with open(os.path.join(mainpatient_dir, "val-NICHE_DS.txt"), "w") as f:
         f.write("\n".join(val_frames))
 
-    with open(os.path.join(mainpatient_dir, "test.txt"), "w") as f:
+    with open(os.path.join(mainpatient_dir, "test-NICHE_DS.txt"), "w") as f:
         f.write("\n".join(test_frames))
 
     print(f"Dataset prepared successfully in {output_folder}")

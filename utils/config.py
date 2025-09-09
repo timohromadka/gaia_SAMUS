@@ -130,6 +130,38 @@ class Config_CAMUS:
     visual = False
     modelname = "SAM"
 
+class Config_NICHE:
+    data_path = "../../dataset/SAMUS/"
+    data_subpath = "../../dataset/SAMUS/NICHE_DS/"
+    save_path = "./checkpoints/NICHE_DS/"
+    result_path = "./result/NICHE_DS/"
+    tensorboard_path = "./tensorboard/NICHE_DS/"
+    load_path = save_path + "/xxx.pth"
+
+    workers = 2
+    epochs = 400
+    batch_size = 8
+    learning_rate = 1e-4
+    momentum = 0.9
+    classes = 2  # background + foreground (adjust if needed)
+    img_size = 256
+    train_split = "train-NICHE_DS"
+    val_split = "val-NICHE_DS"
+    test_split = "test-NICHE_DS"
+    crop = None
+    eval_freq = 1
+    save_freq = 2000
+    device = "cuda"
+    cuda = "on"
+    gray = "yes"  # adjust if your images are RGB
+    img_channel = 1
+    eval_mode = "mask_slice"  # or "camusmulti" if multi-class
+    pre_trained = True  # set True if fine-tuning from pretrained SAMUS
+    mode = "train"
+    visual = False
+    modelname = "SAMUS"
+
+
 # ==================================================================================================
 def get_config(task="US30K"):
     if task == "US30K":
@@ -140,5 +172,7 @@ def get_config(task="US30K"):
         return Config_BUSI()
     elif task == "CAMUS":
         return Config_CAMUS()
+    elif task == "NICHE":
+        return Config_NICHE()
     else:
         assert("We do not have the related dataset, please choose another task.")
