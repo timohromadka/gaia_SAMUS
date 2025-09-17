@@ -136,12 +136,14 @@ class Config_NICHE:
     """
     Configuration for the custom NICHE dataset.
     """
-    data_path = "/net/beegfs/groups/gaia/niche_segmentation_storage/datasets/"
-    data_subpath = "/net/beegfs/groups/gaia/niche_segmentation_storage/datasets/niches_15_9_sbaf0_pnc100_SAMUS/"
-    save_path = "./checkpoints/niches_15_9_sbaf0_pnc100_SAMUS/"
-    result_path = "./result/niches_15_9_sbaf0_pnc100_SAMUS/"
-    tensorboard_path = "./tensorboard/niches_15_9_sbaf0_pnc100_SAMUS/"
-    load_path = save_path + "xxx.pth"  # Replace xxx.pth with actual checkpoint filename when resuming
+    data_path = "/net/beegfs/groups/gaia/niche_segmentation_storage/datasets/niches_15_9_sbaf0_pnc100_SAMUS"
+    data_subpath = "/net/beegfs/groups/gaia/niche_segmentation_storage/datasets/niches_15_9_sbaf0_pnc100_SAMUS/Niches"
+    save_path = "/net/beegfs/groups/gaia/gaia_SAMUS_storage/checkpoints/NICHES/"
+    result_path = "/net/beegfs/groups/gaia/gaia_SAMUS_storage/results/NICHES/"
+    tensorboard_path = "/net/beegfs/groups/gaia/gaia_SAMUS_storage/checkpoints/NICHES/"
+    load_path = save_path + "SAMUS_09171857_8_0.6408096927101944.pth"  # Replace xxx.pth with actual checkpoint filename when resuming
+    # load_path = save_path + "sam_vit_b_01ec64.pth"  # Replace xxx.pth with actual checkpoint filename when resuming
+    save_path_code = "_"
 
     # ===== TRAINING PARAMETERS =====
     workers = 2
