@@ -1,6 +1,6 @@
 from ast import arg
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = '3'
+# os.environ["CUDA_VISIBLE_DEVICES"] = '3'
 import argparse
 from pickle import FALSE, TRUE
 from statistics import mode
@@ -85,7 +85,7 @@ def main():
 
     model.to(device)
     if opt.pre_trained:
-        checkpoint = torch.load(opt.load_path)
+        checkpoint = torch.load(opt.load_path, map_location='cuda:0')  # <-- map to available GPU
         new_state_dict = {}
         for k,v in checkpoint.items():
             if k[:7] == 'module.':
@@ -93,6 +93,7 @@ def main():
             else:
                 new_state_dict[k] = v
         model.load_state_dict(new_state_dict)
+
       
     if args.n_gpu > 1:
         model = nn.DataParallel(model)
