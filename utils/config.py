@@ -130,39 +130,70 @@ class Config_CAMUS:
     visual = False
     modelname = "SAM"
 
-class Config_NICHE:
-    data_path = "../../dataset/SAMUS/"
-    data_subpath = "../../dataset/SAMUS/NICHE_DS/"
-    save_path = "./checkpoints/NICHE_DS/"
-    result_path = "./result/NICHE_DS/"
-    tensorboard_path = "./tensorboard/NICHE_DS/"
-    load_path = save_path + "/xxx.pth"
 
+
+class Config_NICHE:
+    """
+    Configuration for the custom NICHE dataset.
+    """
+    data_path = "/net/beegfs/groups/gaia/niche_segmentation_storage/datasets/"
+    data_subpath = "/net/beegfs/groups/gaia/niche_segmentation_storage/datasets/niches_15_9_sbaf0_pnc100_SAMUS/"
+    save_path = "./checkpoints/niches_15_9_sbaf0_pnc100_SAMUS/"
+    result_path = "./result/niches_15_9_sbaf0_pnc100_SAMUS/"
+    tensorboard_path = "./tensorboard/niches_15_9_sbaf0_pnc100_SAMUS/"
+    load_path = save_path + "xxx.pth"  # Replace xxx.pth with actual checkpoint filename when resuming
+
+    # ===== TRAINING PARAMETERS =====
     workers = 2
     epochs = 400
     batch_size = 8
     learning_rate = 1e-4
     momentum = 0.9
-    classes = 2  # background + foreground (adjust if needed)
+
+    # Binary segmentation: background + niche
+    classes = 2  
+
+    # Image size for training
     img_size = 256
-    train_split = "train-NICHE_DS"
-    val_split = "val-NICHE_DS"
-    test_split = "test-NICHE_DS"
+
+    # These must match the names of text files in MainPatient/
+    train_split = "train"
+    val_split = "val"
+    test_split = "test"
+
+    # Optional cropping (None = no cropping)
     crop = None
+
+    # Frequency for evaluation and saving
     eval_freq = 1
     save_freq = 2000
+
+    # Hardware
     device = "cuda"
     cuda = "on"
-    gray = "yes"  # adjust if your images are RGB
-    img_channel = 1
-    eval_mode = "mask_slice"  # or "camusmulti" if multi-class
-    pre_trained = True  # set True if fine-tuning from pretrained SAMUS
+
+    # Image format
+    gray = "yes"        # 'yes' if grayscale images, 'no' if RGB
+    img_channel = 1     # 1 for grayscale, 3 for RGB
+
+    # Evaluation mode
+    eval_mode = "mask_slice"  # use "camusmulti" if multi-class dataset
+
+    # Whether to use a pretrained SAMUS model for fine-tuning
+    pre_trained = True
+
+    # Mode: "train" or "test"
     mode = "train"
-    visual = False
+
+    # Visualize outputs during training
+    visual = True
+
+    # Model architecture
     modelname = "SAMUS"
 
 
 # ==================================================================================================
+# Factory function to get the configuration for the chosen dataset
 def get_config(task="US30K"):
     if task == "US30K":
         return Config_US30K()
@@ -175,4 +206,4 @@ def get_config(task="US30K"):
     elif task == "NICHE":
         return Config_NICHE()
     else:
-        assert("We do not have the related dataset, please choose another task.")
+        raise ValueError("We do not have the related dataset, please choose another task.")
