@@ -8,6 +8,7 @@ import torchvision
 from torch.utils.data import DataLoader
 import torch.optim as optim
 import random
+import wandb
 from utils.config import get_config
 from utils.evaluation import get_eval
 from models.model_dict import get_model
@@ -37,13 +38,15 @@ def extract_frames(video_path, temp_frame_dir):
 
 def overlay_mask_on_frame(frame, mask):
     """Overlay segmentation mask (binary) on a frame in red."""
-    overlay = frame.copy()
-    mask_red = np.zeros_like(frame)
-    mask_red[:, :, 2] = (mask * 255).astype(np.uint8)  # red channel
+    overlay = frame.copy().astype(np.float32)
 
-    # Blend original frame and red mask
-    blended = cv2.addWeighted(overlay, 1.0, mask_red, 0.5, 0)
-    return blended
+    # Create red overlay where mask is 1
+    mask_indices = mask > 0
+    overlay[mask_indices, 2] = np.clip(overlay[mask_indices, 2] + 100, 0, 255)  # Increase red channel
+    overlay[mask_indices, 0] = np.clip(overlay[mask_indices, 0] * 0.7, 0, 255)  # Reduce blue channel
+    overlay[mask_indices, 1] = np.clip(overlay[mask_indices, 1] * 0.7, 0, 255)  # Reduce green channel
+
+    return overlay.astype(np.uint8)
 
 def frames_to_video(frame_paths, output_path, fps):
     """Combine frames back into a video."""
@@ -62,7 +65,11 @@ def frames_to_video(frame_paths, output_path, fps):
     out.release()
 
 def run_inference_on_video(model, device, video_path, output_video_path, args, opt):
-    """Run inference on all frames of a video and save an output video."""
+    """Run inference on all frames of a video and save an output video.
+
+    Returns:
+        output_video_path: path to the generated output video
+    """
     temp_frame_dir = os.path.join("temp_frames", os.path.basename(video_path).split('.')[0])
     os.makedirs(temp_frame_dir, exist_ok=True)
 
@@ -93,8 +100,8 @@ def run_inference_on_video(model, device, video_path, output_video_path, args, o
         mask_tensor = output["masks"]  # Shape: [B, 1, H, W]
         mask = torch.sigmoid(mask_tensor).squeeze().cpu().numpy()  # Convert to numpy
         mask = (mask > 0.5).astype(np.uint8)  # Binarize at threshold 0.5
-        mask_resized = cv2.resize(mask, (frame.shape[1], frame.shape[0]))
-
+        # Use nearest neighbor interpolation for binary mask to preserve sharp edges
+        mask_resized = cv2.resize(mask, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_NEAREST)
 
         # Step 3: Overlay mask on frame
         blended_frame = overlay_mask_on_frame(frame, mask_resized)
@@ -106,13 +113,7 @@ def run_inference_on_video(model, device, video_path, output_video_path, args, o
     # Step 4: Combine processed frames into a video
     frames_to_video(processed_frame_paths, output_video_path, fps)
 
-    # Optional: cleanup temporary frames
-    # import shutil
-    # shutil.rmtree(temp_frame_dir)
-
-    # Optional: cleanup temporary frames
-    # import shutil
-    # shutil.rmtree(temp_frame_dir)
+    return output_video_path
 
 def main():
     # =========================================== Parameters ==================================================
@@ -133,6 +134,12 @@ def main():
     # IF doing inference ONLY on videos
     parser.add_argument('--input_mp4_directory', type=str, default=None,
                         help='Directory containing MP4 videos to run inference on')
+
+    # wandb arguments
+    parser.add_argument('--entity', type=str, default='gen_music',
+                        help='wandb entity name')
+    parser.add_argument('--project', type=str, default='GAIA',
+                        help='wandb project name')
 
     args = parser.parse_args()
     opt = get_config(args.task)
@@ -156,7 +163,7 @@ def main():
     model = get_model(args.modelname, args=args, opt=opt)
     model.to(device)
 
-    checkpoint = torch.load(opt.load_path)
+    checkpoint = torch.load(opt.resume_path)
     new_state_dict = {k[7:] if k.startswith('module.') else k: v for k, v in checkpoint.items()}
     model.load_state_dict(new_state_dict)
 
@@ -164,6 +171,14 @@ def main():
 
     # ========================= If video directory is provided =========================
     if args.input_mp4_directory:
+        # Initialize wandb
+        wandb.init(
+            entity=args.entity,
+            project=args.project,
+            name=f"video_inference_{args.modelname}",
+            config=vars(args)
+        )
+
         input_dir = args.input_mp4_directory
         output_dir = input_dir.rstrip('/') + "_OUTPUT"
         os.makedirs(output_dir, exist_ok=True)
@@ -173,14 +188,27 @@ def main():
 
         for video_file in video_files:
             video_path = os.path.join(input_dir, video_file)
-            
+
             # Add "_output" suffix before .mp4
             base_name, ext = os.path.splitext(video_file)
             output_video_path = os.path.join(output_dir, f"{base_name}_output{ext}")
 
-            run_inference_on_video(model, device, video_path, output_video_path, args, opt)
+            # Run inference and get output video path
+            generated_video_path = run_inference_on_video(model, device, video_path, output_video_path, args, opt)
+
+            # Log the generated video to wandb
+            wandb.log({
+                "video_inference": wandb.Video(generated_video_path, format="mp4"),
+                "source_video": base_name
+            })
+
+            # Save video as artifact for easy download
+            artifact = wandb.Artifact(f"video_{base_name}", type="video")
+            artifact.add_file(generated_video_path, name=f"{base_name}_output.mp4")
+            wandb.log_artifact(artifact)
 
         print(f"Processed videos saved to: {output_dir}")
+        wandb.finish()
         return
 
 

@@ -16,8 +16,11 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 import time
 import random
+from datetime import datetime
+import wandb
 from utils.config import get_config
 from utils.evaluation import get_eval
+from utils.wandb_utils import log_validation_images, log_metrics
 from importlib import import_module
 
 from torch.nn.modules.loss import CrossEntropyLoss
@@ -43,12 +46,38 @@ def main():
     parser.add_argument('--batch_size', type=int, default=8, help='batch_size per gpu') # SAMed is 12 bs with 2n_gpu and lr is 0.005
     parser.add_argument('--n_gpu', type=int, default=1, help='total gpu')
     parser.add_argument('--base_lr', type=float, default=0.0005, help='segmentation network learning rate, 0.005 for SAMed, 0.0001 for MSA') #0.0006
-    parser.add_argument('--warmup', type=bool, default=False, help='If activated, warp up the learning from a lower lr to the base_lr') 
+    parser.add_argument('--warmup', type=bool, default=False, help='If activated, warp up the learning from a lower lr to the base_lr')
     parser.add_argument('--warmup_period', type=int, default=250, help='Warp up iterations, only valid whrn warmup is activated')
     parser.add_argument('-keep_log', type=bool, default=False, help='keep the loss&lr&dice during training or not')
+    parser.add_argument('--experiment_name', type=str, default='niche_segmentation', help='experiment name for wandb logging')
+    parser.add_argument('--project', type=str, default='GAIA', help='wandb project name where logs will be saved')
 
     args = parser.parse_args()
-    opt = get_config(args.task) 
+    opt = get_config(args.task)
+
+    # Initialize wandb with experiment name and timestamp
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    wandb_experiment_name = f"{args.experiment_name}_{timestamp}"
+    print(f"Initializing wandb entity: gen_music, project: {args.project}")
+    print(f"Experiment name: {wandb_experiment_name}")
+    wandb.init(
+        entity="gen_music",
+        project=args.project,
+        name=wandb_experiment_name,
+        config={
+            "modelname": args.modelname,
+            "encoder_input_size": args.encoder_input_size,
+            "low_image_size": args.low_image_size,
+            "task": args.task,
+            "batch_size": args.batch_size,
+            "n_gpu": args.n_gpu,
+            "base_lr": args.base_lr,
+            "warmup": args.warmup,
+            "warmup_period": args.warmup_period,
+            "epochs": opt.epochs,
+            "eval_freq": opt.eval_freq,
+        }
+    )
 
     device = torch.device(opt.device)
     if args.keep_log:
@@ -147,11 +176,12 @@ def main():
             iter_num = iter_num + 1
 
         #  -------------------------------------------------- log the train progress --------------------------------------------------
-        print('epoch [{}/{}], train loss:{:.4f}'.format(epoch, opt.epochs, train_losses / (batch_idx + 1)))
+        train_loss_avg = train_losses / (batch_idx + 1)
+        print('epoch [{}/{}], train loss:{:.4f}'.format(epoch, opt.epochs, train_loss_avg))
         if args.keep_log:
-            TensorWriter.add_scalar('train_loss', train_losses / (batch_idx + 1), epoch)
+            TensorWriter.add_scalar('train_loss', train_loss_avg, epoch)
             TensorWriter.add_scalar('learning rate', optimizer.state_dict()['param_groups'][0]['lr'], epoch)
-            loss_log[epoch] = train_losses / (batch_idx + 1)
+            loss_log[epoch] = train_loss_avg
 
         #  --------------------------------------------------------- evaluation ----------------------------------------------------------
         if epoch % opt.eval_freq == 0:
@@ -163,6 +193,22 @@ def main():
                 TensorWriter.add_scalar('val_loss', val_losses, epoch)
                 TensorWriter.add_scalar('dices', mean_dice, epoch)
                 dice_log[epoch] = mean_dice
+
+            # Log metrics to wandb
+            log_metrics(
+                epoch=epoch,
+                train_loss=train_loss_avg,
+                val_loss=val_losses,
+                test_loss=0.0,  # Set to 0.0 if test evaluation not performed during training
+                train_dice=0.0,  # Training dice not computed in current pipeline
+                val_dice=mean_dice,
+                test_dice=0.0  # Test dice not computed in current pipeline
+            )
+
+            # Log validation sample images every 3 epochs
+            if epoch % 3 == 0:
+                log_validation_images(valloader, model, opt, args, epoch)
+
             if mean_dice > best_dice:
                 best_dice = mean_dice
                 timestr = time.strftime('%m%d%H%M')
